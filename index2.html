@@ -1,0 +1,328 @@
+<!doctype html>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js" integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<table width="800">
+    <label>Carrier frequency</label>
+    <input id="carrierFrequency" value="1000" type="number" min="400" max="4000">
+    <div id="collections"></div>
+    <button onclick="start()">start</button>
+    <button onclick="stop()">stop</button>
+    <button onclick="save([...mods].filter(m => m.chart === leftChart), presetName.value)">save left</button>
+    <button onclick="save([...mods].filter(m => m.chart === rightChart),  presetName.value)">save right</button>
+    <input id="presetName">
+    <button onclick="load(presetName.value, panLeft, left, leftChart)">load left</button>
+    <button onclick="load(presetName.value, panRight, right, rightChart)">load right</button>
+    <td id="left">
+        <h3>Left</h3>
+        <button onclick="addOscillator(panLeft, left, leftChart)">Add oscillator</button>
+    </td>
+    <td id="right">
+        <h3>Right</h3>
+        <button onclick="addOscillator(panRight, right, rightChart)">Add oscillator</button>
+    </td>
+    <td id="pan">
+        <h3>Triphase</h3>
+        <button onclick="start3()">Start</button>
+        <button onclick="stop3()">Stop</button>
+        <input id="triphasePan" type="range" min="-1" max="1" step="0.01" value="0" oninput="changePan()">
+    </td>
+</table>
+<canvas id="leftChart" style="display: inline-block" height="200" width="400"></canvas>
+<canvas id="rightChart" style="display: inline-block" height="200" width="400"></canvas>
+<script>
+
+    function createChart(id) {
+        const chartCtx = document.getElementById(id).getContext('2d');
+        return new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: indices,
+                datasets: [{
+                    data: [],
+                }]
+            },
+            options: {
+                elements: {
+                    point: {
+                        radius: 0
+                    }
+                },
+                responsive: false,
+                animation: false,
+                scales: {
+                    y: {
+                        min: -1,
+                        max: 1
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        })
+    }
+
+    const points = 241
+
+    const indices = Array.from(Array(points+1).keys()).map(i => Math.round((i/((points-1)/4) + Number.EPSILON) * 100) / 100)
+
+    const leftChart = createChart('leftChart')
+    const rightChart = createChart('rightChart')
+
+    function el(id) {
+        return document.getElementById(id)
+    }
+    function createElement(name, parent, properties) {
+        const element = document.createElement(name)
+
+        for(const property in properties) {
+            element[property] = properties[property]
+        }
+
+        if(parent) {
+            parent.appendChild(element)
+        }
+
+        return element
+    }
+
+    function createWrapper(wrapper, parent, ...elements) {
+        const result = createElement(wrapper, parent, {})
+
+        for(const element of elements) {
+            result.appendChild(element)
+        }
+
+        if(parent) {
+            parent.appendChild(result)
+        }
+
+        return result
+    }
+
+    function addOscillator(destination, parent, chart) {
+        stop()
+        const osc = new Oscillator(ctx, destination, parent, chart)
+        mods.add(osc)
+        return osc
+    }
+
+    const presetName = el("presetName")
+
+    class Oscillator {
+        constructor(ctx, destination, parent, chart) {
+            this.frequency = 0
+            this.delay = 0
+            this.destination = destination
+            this.element = createElement("div", parent)
+            this.chart = chart
+
+            const frequencyLabel = createElement("label", undefined, {innerText: "frequency"})
+            this.frequencySlider = createElement("input", undefined, {type: "range", min: 0, step: 0.1, max: 100, oninput: this.handleFrequencySlider.bind(this)})
+            this.frequencyTextBox = createElement("input", undefined, {type: "number", min: 0, step: 0.1, max: 100, oninput: this.handleFrequencyTextBox.bind(this)})
+
+            const delayLabel = createElement("label", undefined, {innerText: "delay"})
+            this.delaySlider = createElement("input", undefined, {type: "range", min: 0, step: 0.1, max: 100, oninput: this.handleDelaySlider.bind(this)})
+            this.delayTextBox = createElement("input", undefined, {type: "number", min: 0, step: 0.1, max: 100, oninput: this.handleDelayTextBox.bind(this)})
+            this.deleteButton = createElement("button", undefined, {innerText: "remove", onclick: this.remove.bind(this)})
+            createWrapper("div", this.element, frequencyLabel, this.frequencySlider, this.frequencyTextBox, delayLabel, this.delaySlider, this.delaySlider, this.delayTextBox, this.deleteButton)
+
+
+            this.setFrequency(0.5)
+            this.setDelay(0)
+        }
+
+        remove() {
+            this.element.remove()
+            mods.delete(this)
+        }
+
+        setFrequency(value) {
+            this.frequency = value
+            this.frequencySlider.value = value
+            this.frequencyTextBox.value = value
+        }
+
+        handleFrequencySlider(event) {
+            this.setFrequency(parseFloat(event.target.value))
+        }
+
+        handleFrequencyTextBox(event) {
+            this.setFrequency(parseFloat(event.target.value))
+        }
+
+        handleDelaySlider(event) {
+            this.setDelay(parseFloat(event.target.value))
+        }
+
+        handleDelayTextBox(event) {
+            this.setDelay(parseFloat(event.target.value))
+        }
+
+        setDelay(value) {
+            this.delay = value
+            this.delaySlider.value = value
+            this.delayTextBox.value = value
+        }
+    }
+
+    function createPan(channel) {
+        const pan = new StereoPannerNode(ctx)
+        pan.pan.setValueAtTime(channel, ctx.currentTime)
+        pan.connect(gain)
+
+        return pan
+    }
+
+    function save(collection, name) {
+
+        presets[name] = collection.map(c => {
+            return {
+                frequency: c.frequency,
+                delay: c.delay,
+            }
+        })
+        reloadCollections()
+    }
+
+    function remove(name) {
+        delete presets[name]
+        reloadCollections()
+    }
+
+    function load(name, destination, parent, chart) {
+        const preset = presets[name]
+        mods = new Set([...mods].filter(m => m.chart !== chart))
+        preset.forEach(l => {
+            const osc = addOscillator(destination, parent, chart)
+            osc.setDelay(l.delay)
+            osc.setFrequency(l.frequency)
+        })
+    }
+
+    function reloadCollections() {
+        console.log(presets)
+        collections.replaceChildren(Object.keys(presets))
+        window.localStorage.setItem("presets", JSON.stringify(presets))
+    }
+
+    let presets = JSON.parse(window.localStorage.getItem("presets"))
+    if(!presets) {
+        presets = {}
+    }
+
+    let chartUpdate
+    let leftData = []
+    let rightData = []
+    let offset = 0
+    const stepSize = 1000/60
+
+    function start() {
+        stop()
+        const baseFrequency = parseFloat(carrierFrequency.value)
+        oscillators.carrier = new OscillatorNode(ctx, {frequency: baseFrequency})
+
+        oscillators.carrier.connect(gain)
+        const time = ctx.currentTime + 0.5
+        mods.forEach(oscillator => {
+            let node = new OscillatorNode(ctx, {frequency: baseFrequency + oscillator.frequency})
+            console.log(oscillator.frequency)
+            node.connect(oscillator.destination)
+            oscillators.mods.push(node)
+            node.start(time + oscillator.delay)
+        })
+
+        offset = 0
+
+        const updateChart = (chart, data) => {
+            let next = 0
+
+            Array.from(mods).filter(o => o.chart === chart).forEach(oscillator => {
+                const t = Math.max(offset - oscillator.delay, 0)
+                next += Math.sin(t*2*Math.PI*oscillator.frequency)
+            })
+
+            next/=Array.from(mods).filter(o => o.chart === chart).length
+            data.push(next)
+            if(data.length > points) {
+                data.shift()
+            }
+
+            chart.data.datasets[0].data = data
+            chart.update()
+        }
+
+        chartUpdate = setInterval(() => {
+            updateChart(leftChart, leftData)
+            updateChart(rightChart, rightData)
+            offset+=stepSize/1000
+        }, stepSize)
+
+
+
+        oscillators.carrier.start(time)
+    }
+
+    function stop() {
+        leftChart.data.datasets[0].data = []
+        rightChart.data.datasets[0].data = []
+        leftData = []
+        rightData = []
+        leftChart.update()
+        rightChart.update()
+        oscillators.carrier?.stop()
+        oscillators.mods.forEach(mod => mod.stop())
+        oscillators.mods = []
+        clearInterval(chartUpdate)
+    }
+
+    function stop3() {
+        carrier?.stop()
+        triphase?.stop()
+    }
+
+    function changePan() {
+        pan.pan.setValueAtTime(parseFloat(triphasePan.value), 0)
+        console.log(pan)
+    }
+
+    function start3() {
+        stop3()
+        const baseFrequency = parseFloat(carrierFrequency.value)
+
+        pan = new StereoPannerNode(ctx)
+        pan.connect(ctx.destination)
+        carrier = new OscillatorNode(ctx, {frequency: baseFrequency})
+        triphase = new OscillatorNode(ctx, {frequency: 4})
+        triphase.type = "square"
+        triphase.value = 0
+        let limit = new GainNode(ctx)
+        limit.gain.setValueAtTime(0.8, ctx.currentTime)
+        limit.connect(pan.pan)
+        carrier.connect(pan)
+        console.log(pan.pan)
+        // triphase.connect(pan.pan)
+
+        const time = ctx.currentTime + 0.5
+        carrier.start(time)
+        triphase.start(time)
+    }
+
+    let pan
+    let oscillators = { mods: [] }
+    let triphase
+    let mods = new Set()
+    let carrier
+    const ctx = new AudioContext()
+    const gain = new GainNode(ctx)
+    gain.connect(ctx.destination)
+    const carrierFrequency = el("carrierFrequency")
+    const left = el("left")
+    const right = el("right")
+    let triphasePan = el("triphasePan")
+    const panLeft = createPan(-1, ctx)
+    const panRight = createPan(1, ctx)
+    const collections = el("collections")
+    reloadCollections()
+</script>
