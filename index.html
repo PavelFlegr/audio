@@ -82,12 +82,246 @@
         </div>
     </div>
     <div class="column">
+        <canvas id="waveform", width="1000" height="400"></canvas>
         <canvas id="leftChart" style="display: inline-block" width="730"></canvas>
         <canvas id="rightChart" style="display: inline-block" width="730"></canvas>
     </div>
 </div>
+<div ondrop="drop(event)" ondragover="allowDrop(event)" style="width: 800px; height: 200px; background: gray" id="sequence"></div>
+<button onclick="playSequence()">play sequence</button>
+<button onclick="stopSequence()">stop sequence</button>
+
+<div id="buttons">
+    <button draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" onclick="play2(0)">stop</button>
+    <button draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" onclick="play2(200)">200</button>
+    <button draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" onclick="play2(800)">800</button>
+    <button draggable="true" ondragstart="drag(event)" ondragend="dragEnd(event)" onclick="play2(2000)">2000</button>
+</div>
+<button onclick="pulse(0.5)">0.5</button>
+<button onclick="pulse(1)">1</button>
+<button onclick="pulse(2)">2</button>
+<button onclick="startAaa(0)">aaa</button>
+<input id="gain" type="range" value="1" min="0.7" max="1" step="0.01">
+<button onclick="playTest()">play test</button>
 
 <script>
+    function allowDrop(ev) {
+        ev.preventDefault()
+    }
+    function drag(ev) {
+        ev.target.classList.toggle("dragging", true)
+    }
+    function dragEnd(ev) {
+        ev.target.classList.toggle("dragging", false)
+    }
+    function drop(ev) {
+        ev.preventDefault()
+        console.log(ev)
+        id = ev.dataTransfer.getData("id")
+        button = document.querySelector(".dragging").cloneNode(true)
+        button.classList.toggle("dragging", false)
+        ev.target.appendChild(button)
+    }
+    function playTest() {
+        let ctx = new AudioContext()
+        let analyser = ctx.createAnalyser()
+        setupCanvas(analyser)
+        let start = 0;
+        for(let i = 100; i <= 800; i+= 50) { 
+            let carrier = new OscillatorNode(ctx, {frequency: i})
+            carrier.connect(ctx.destination)
+            carrier.connect(analyser)
+            carrier.start(start)
+            carrier.stop(start+0.5)
+            start += 0.5
+        }
+    }
+
+    let loop
+    function playSequence() {
+        stopSequence()
+        let button
+        loop = setInterval(() => {
+            if(!button) {
+                button = document.getElementById("sequence").firstChild
+            }
+            button.click()
+            button = button.nextSibling
+        }, 500)
+    }
+
+    function stopSequence() {
+        clearInterval(loop)
+        stop()
+    }
+
+    let carrier
+    function stop() {
+        if(carrier) {
+            carrier.stop()
+            carrier = null
+        }
+    }
+    canvasCtx = document.getElementById("waveform").getContext("2d")
+    let canvasWidth = 1000
+    let canvasHeight = 400
+
+    let ctx = new AudioContext()
+    let gain = new GainNode(ctx)
+    let analyser = ctx.createAnalyser()
+    let modulator
+    gain.connect(ctx.destination)
+    gain.connect(analyser)
+    
+    sine = []
+    for(let i = 0; i < Math.PI; i+=0.1) {
+        sine.push(Math.sin(i))
+    }
+    sine.push(0)
+    pulses = [0.1, 0.2, 0.3, 0.5]
+
+    function startAaa() {
+        setupCanvas(analyser)
+        aaa()
+    }
+    function aaa(i) {
+        createCarrier(400)
+        carrier.start()
+        p = 0.1+Math.random()
+        pulse(p, 200+Math.random()*1000)
+        setTimeout(() => aaa((i+1)%pulses.length), p/2*1000)
+    }
+    let mod
+    function pulse(period, frequency) {
+        carrier.frequency.setValueAtTime(frequency, ctx.currentTime)
+        mod = new OscillatorNode(ctx, {frequency: 1/period})
+        mod.connect(gain.gain)
+        mod.start()
+        mod.stop(ctx.currentTime+period/2)
+        gain.gain.setTargetAtTime(0, ctx.currentTime+period/2, 0.001)
+    }
+
+    function createModulator(frequency) {
+        console.log(frequency)
+        modulator = new OscillatorNode(ctx, {frequency})
+        modulator.connect(gain.gain)
+        // modulator.connect(analyser)
+    }
+
+    function createCarrier(frequency) {
+        stop()
+        carrier = new OscillatorNode(ctx, {frequency})
+        carrier.connect(gain)
+    }
+
+    // setInterval(()=>{
+    //     if(!gain) {
+    //         return
+    //     }
+    //     let val = document.getElementById("gain").value
+    //     console.log(val)
+    //     gain.gain.setValueAtTime(document.getElementById("gain").value, 0)
+    // },10)
+
+    function play2(frequency) {
+        stop()
+        let ctx = new AudioContext()
+        let analyser = ctx.createAnalyser()
+        setupCanvas(analyser)
+        carrier = new OscillatorNode(ctx, {frequency})
+        gain = new GainNode(ctx)
+        gain.connect(ctx.destination)
+        gain.connect(analyser)
+        carrier.connect(gain)
+        carrier.start()
+    }
+    
+    sounds = [
+            {
+                frequency: 1000,
+                time: 1,
+            },
+            {
+                frequency: 0,
+                time: 0.5
+            },
+            {
+                frequency: 200,
+                time: 1,
+            },
+            {
+                frequency: 0,
+                time: 0.5
+            },
+            {
+                frequency: 2000,
+                time: 1,
+            },
+        ]
+
+    function setupCanvas(analyser) {
+        analyser.fftSize = 2**13
+        const bufferLength = analyser.frequencyBinCount
+        const dataArray = new Uint8Array(bufferLength)
+        canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight)
+        
+        function draw() {
+            const drawVisual = requestAnimationFrame(draw)
+            analyser.getByteTimeDomainData(dataArray)
+            canvasCtx.fillStyle = "rgb(200,200,200)"
+            canvasCtx.fillRect(0,0,canvasWidth,canvasHeight)
+            canvasCtx.lineWidth=2
+            canvasCtx.strokeStyle="rgb(0,0,0)"
+            canvasCtx.beginPath();
+
+            const sliceWidth = canvasWidth / bufferLength
+            let x = 0
+            for(let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i]/128.0
+                const y = v * (canvasHeight/2)
+                if (i === 0) {
+                    canvasCtx.moveTo(x,y)
+                } else {
+                    canvasCtx.lineTo(x,y)
+                }
+                x += sliceWidth
+            }
+
+            canvasCtx.lineTo(canvasWidth,canvasHeight/2)
+            canvasCtx.stroke()
+        }
+
+        draw()
+    }
+
+    function play() {
+        let ctx = new AudioContext()
+        let analyser = ctx.createAnalyser()
+        let start = 0
+        for(sound of sounds) {
+            playSound(ctx, analyser, sound.frequency, start, start + sound.time)
+            start += sound.time
+        }
+        setupCanvas(analyser)
+    }
+
+    function playSound(ctx, analyser, frequency, start, end) {
+        let carrier = new OscillatorNode(ctx, {frequency: frequency})
+        let carrierGain = new GainNode(ctx)
+        carrierGain.gain.setValueAtTime(1, 0)
+        // let gain = new GainNode(ctx)
+        // let signal = new OscillatorNode(ctx, {frequency: frequency, type: "sine"})
+        carrier.connect(ctx.destination)
+        // gain.connect(carrierGain)
+        // signal.connect(gain)
+        // carrierGain.connect(ctx.destination)
+        carrier.connect(analyser)
+        carrier.start(start)
+        // signal.start(start)
+        // signal.stop(end)
+        carrier.stop(end)
+    }
+
     document.addEventListener('alpine:init', () => {
         const player = new Player()
         const showSeconds = 4
@@ -274,6 +508,7 @@
     class Player {
         ctx = new AudioContext()
         gain = new GainNode(this.ctx)
+        analyser = new AnalyserNode(this.ctx)
         pan = {
             left: null,
             right: null
@@ -285,12 +520,14 @@
             this.gain.connect(this.ctx.destination)
             this.pan.left = this.createPan(-1)
             this.pan.right = this.createPan(1)
+            this.pan.left.connect(this.analyser)
+            setupCanvas(this.analyser)
         }
 
         createPan(channel) {
             const pan = new StereoPannerNode(this.ctx)
             pan.pan.setValueAtTime(channel, this.ctx.currentTime)
-            pan.connect(this.gain)
+            pan.connect(this.gain.gain)
 
             return pan
         }
