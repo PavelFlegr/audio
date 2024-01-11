@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Electro</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sakura.css/css/sakura.css" type="text/css">
+    </head>
+    <div style="display: flex; width: 1000px; justify-content: space-between;">
+        <div id="left">
+            <h1>Left</h1>
+            <h2>Random</h2>
+            <label>min length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minLength">
+            <label>max length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxLength">
+            <label>min pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minPause">
+            <label>max pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxPause">
+            <br>
+            <button onclick="random(app.left)">start</button>
+            <button onclick="stop(app.left)">stop</button>
+            <br>
+            <h2>Ramp</h2>
+            <label>max length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxLengthRamp">
+            <label>min length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.05" class="minLengthRamp">
+            <label>period (s)</label>
+            <input type="number" min="1" step="1" max="10" value="2" class="periodRamp">
+            <label>pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.1" class="pauseRamp">
+            <label>factor</label>
+            <input type="number" min="1.1" step="0.1" max="3" value="2" class="factorRamp">
+            <br>
+            <button onclick="ramp(app.left)">start</button>
+            <button onclick="stop(app.left)">stop</button>
+            <h2>Pain</h2>
+            <label>min pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minPausePain">
+            <label>max pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="maxPausePain">
+            <br>
+            <button onclick="pain(app.left)">start</button>
+            <button onclick="stop(app.left)">stop</button>
+            <canvas id="leftChart", width="400" height="200"></canvas>
+        </div>
+        <div id="right">
+            <h1>Right</h1>
+            <h2>Random</h2>
+            <label>min length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minLength">
+            <label>max length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxLength">
+            <label>min pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minPause">
+            <label>max pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxPause">
+            <br>
+            <button onclick="random(app.right)">start</button>
+            <button onclick="stop(app.right)">stop</button>
+            <br>
+            <h2>Ramp</h2>
+            <label>max length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="1" class="maxLengthRamp">
+            <label>min length (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.05" class="minLengthRamp">
+            <label>period (s)</label>
+            <input type="number" min="1" step="1" max="10" value="2" class="periodRamp">
+            <label>pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.1" class="pauseRamp">
+            <label>factor</label>
+            <input type="number" min="1.1" step="0.1" max="3" value="2" class="factorRamp">
+            <br>
+            <button onclick="ramp(app.right)">start</button>
+            <button onclick="stop(app.right)">stop</button>
+            <h2>Pain</h2>
+            <label>min pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="minPausePain">
+            <label>max pause (s)</label>
+            <input type="number" min="0.05" step="0.05" max="10" value="0.5" class="maxPausePain">
+            <br>
+            <button onclick="pain(app.right)">start</button>
+            <button onclick="stop(app.right)">stop</button>
+            <canvas id="rightChart", width="400" height="200"></canvas>
+        </div>
+    </div>   
+    <script>
+        let app = { left: {}, right: {}}
+        
+        function setupCanvas(analyser, canvasCtx) {
+            analyser.fftSize = 2**13
+            const bufferLength = analyser.frequencyBinCount
+            const dataArray = new Uint8Array(bufferLength)
+            canvasCtx.clearRect(0, 0, canvasWidth, canvasHeight)
+            
+            function draw() {
+                const drawVisual = requestAnimationFrame(draw)
+                analyser.getByteTimeDomainData(dataArray)
+                canvasCtx.fillStyle = "rgb(200,200,200)"
+                canvasCtx.fillRect(0,0,canvasWidth,canvasHeight)
+                canvasCtx.lineWidth=2
+                canvasCtx.strokeStyle="rgb(0,0,0)"
+                canvasCtx.beginPath();
+
+                const sliceWidth = canvasWidth / bufferLength
+                let x = 0
+                for(let i = 0; i < bufferLength; i++) {
+                    const v = dataArray[i]/128.0
+                    const y = v * (canvasHeight/2)
+                    if (i === 0) {
+                        canvasCtx.moveTo(x,y)
+                    } else {
+                        canvasCtx.lineTo(x,y)
+                    }
+                    x += sliceWidth
+                }
+
+                canvasCtx.lineTo(canvasWidth,canvasHeight/2)
+                canvasCtx.stroke()
+            }
+
+            draw()
+        }
+
+        let canvasWidth = 400
+        let canvasHeight = 200
+
+        function init() {
+            app.ctx = new AudioContext()
+            app.left.pan = new StereoPannerNode(app.ctx)
+            app.left.pan.pan.setValueAtTime(-1, 0)
+            app.left.pan.connect(app.ctx.destination)
+            app.left.gain = new GainNode(app.ctx)
+            app.left.gain.connect(app.left.pan)
+            app.left.gain.gain.setValueAtTime(0, 0)
+            app.right.pan = new StereoPannerNode(app.ctx)
+            app.right.pan.pan.setValueAtTime(1, 0)
+            app.right.pan.connect(app.ctx.destination)
+            app.right.gain = new GainNode(app.ctx)
+            app.right.gain.connect(app.right.pan)
+            app.right.gain.gain.setValueAtTime(0, 0)
+            app.carrier = new OscillatorNode(app.ctx, {frequency: 1000})
+            app.carrier.connect(app.left.gain)
+            app.carrier.connect(app.right.gain)
+            app.left.root = document.getElementById("left")
+            app.right.root = document.getElementById("right")
+            app.carrier.start()
+            app.left.stop = () => Promise.resolve()
+            app.right.stop = () => Promise.resolve()
+            app.left.analyser = new AnalyserNode(app.ctx)
+            app.left.pan.connect(app.left.analyser)
+            setupCanvas(app.left.analyser, document.getElementById("leftChart").getContext("2d"))
+            app.right.analyser = new AnalyserNode(app.ctx)
+            app.right.pan.connect(app.right.analyser)
+            setupCanvas(app.right.analyser, document.getElementById("rightChart").getContext("2d"))
+            app.init = true
+        }
+
+        async function sleep(time) {
+            return new Promise((resolve) => {
+                setTimeout(resolve, time)
+            })
+        }
+
+        async function random(channel) {
+            if(!app.init) {
+                init()
+            }
+            await channel.stop()
+            let running = true
+            let resolve
+            channel.stop = () => new Promise(res => {
+                resolve = res
+                running = false
+            })
+            while(running) {
+                let min = +channel.root.querySelector(".minLength").value * 1000
+                let max = +channel.root.querySelector(".maxLength").value * 1000
+                let range = max - min
+                let delay = Math.random() * range + min
+                channel.gain.gain.setValueAtTime(1, app.ctx.currentTime)
+                await sleep(delay)
+                min = +channel.root.querySelector(".minPause").value * 1000
+                max = +channel.root.querySelector(".maxPause").value * 1000
+                range = max - min
+                delay = Math.random() * range + min
+                channel.gain.gain.setValueAtTime(0, app.ctx.currentTime)
+                await sleep(delay)
+            }
+
+            resolve()
+        }
+
+        async function ramp(channel) {
+            if(!app.init) {
+                init()
+            }
+            await channel.stop()
+            let running = true
+            let resolve
+            channel.stop = () => new Promise(res => {
+                resolve = res
+                running = false
+            })
+            let min = +channel.root.querySelector(".minLengthRamp").value * 1000
+            let max = +channel.root.querySelector(".maxLengthRamp").value * 1000
+            let period = +channel.root.querySelector(".periodRamp").value * 1000
+            let factor = +channel.root.querySelector(".factorRamp").value
+            let pause = +channel.root.querySelector(".pauseRamp").value * 1000
+            let direction = -1
+            let step = max
+            while(true) {
+                for(let time = 0; time < period; time += step+pause) {
+                    if(!running) {
+                        resolve()
+                        return
+                    }
+                    channel.gain.gain.setValueAtTime(1, app.ctx.currentTime)
+                    await sleep(step)
+                    channel.gain.gain.setValueAtTime(0, app.ctx.currentTime)
+                    await sleep(pause)
+                }
+                
+                if(step <= min && direction === -1 || step >= max && direction === 1) {
+                    direction *= -1
+                }
+                step = direction === 1 ? Math.min(step * factor, max) : Math.max(step / factor, min)
+            }
+        }
+
+        async function pain(channel) {
+            if(!app.init) {
+                init()
+            }
+            await channel.stop()
+            let running = true
+            let resolve
+            channel.stop = () => new Promise(res => {
+                resolve = res
+                running = false
+            })
+            let signal = new ConstantSourceNode(app.ctx)
+            signal.connect(channel.pan)
+            signal.offset.setValueAtTime(0, app.ctx.currentTime)
+            signal.start()
+            while(running) {
+                signal.offset.setValueAtTime(1, app.ctx.currentTime)
+                await sleep(10)
+                signal.offset.setValueAtTime(0, app.ctx.currentTime)
+                min = +channel.root.querySelector(".minPausePain").value * 1000
+                max = +channel.root.querySelector(".maxPausePain").value * 1000
+                range = max - min
+                delay = Math.random() * range + min
+                await sleep(delay)
+            }
+            signal.stop()
+            resolve()
+        }
+
+        async function stop(channel) {
+            await channel.stop()
+            channel.stop = () => Promise.resolve()
+            channel.gain.gain.setValueAtTime(0,app.ctx.currentTime)
+        }
+    </script>
+</html>
