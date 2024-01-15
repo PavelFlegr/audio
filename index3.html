@@ -241,12 +241,12 @@
             })
             let signal = new ConstantSourceNode(app.ctx)
             signal.connect(channel.pan)
-            signal.offset.setValueAtTime(0, app.ctx.currentTime)
+            signal.offset.setValueAtTime(-1, app.ctx.currentTime)
             signal.start()
             while(running) {
                 signal.offset.setValueAtTime(1, app.ctx.currentTime)
                 await sleep(10)
-                signal.offset.setValueAtTime(0, app.ctx.currentTime)
+                signal.offset.setValueAtTime(-1, app.ctx.currentTime)
                 min = +channel.root.querySelector(".minPausePain").value * 1000
                 max = +channel.root.querySelector(".maxPausePain").value * 1000
                 range = max - min
